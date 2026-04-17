@@ -1,5 +1,4 @@
--- Crear base de datos (si no existe) -- esto lo maneja Render o Docker
--- \c inventario_tienda;
+\c inventario_tienda;
 
 CREATE TABLE IF NOT EXISTS productos (
   id             SERIAL PRIMARY KEY,
@@ -13,25 +12,22 @@ CREATE TABLE IF NOT EXISTS productos (
   actualizado_en TIMESTAMP      DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_categoria ON productos(categoria);
-CREATE INDEX IF NOT EXISTS idx_stock ON productos(stock);
-
--- Función para actualizar automáticamente actualizado_en
-CREATE OR REPLACE FUNCTION update_updated_at_column()
+CREATE OR REPLACE FUNCTION update_actualizado_en_column()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.actualizado_en = CURRENT_TIMESTAMP;
-    RETURN NEW;
+   NEW.actualizado_en = NOW();
+   RETURN NEW;
 END;
 $$ language 'plpgsql';
 
-DROP TRIGGER IF EXISTS update_productos_updated_at ON productos;
-CREATE TRIGGER update_productos_updated_at
-    BEFORE UPDATE ON productos
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_productos_actualizado_en ON productos;
+CREATE TRIGGER update_productos_actualizado_en
+BEFORE UPDATE ON productos
+FOR EACH ROW EXECUTE FUNCTION update_actualizado_en_column();
 
--- Insertar datos de ejemplo
+CREATE INDEX IF NOT EXISTS idx_productos_categoria ON productos(categoria);
+CREATE INDEX IF NOT EXISTS idx_productos_stock ON productos(stock);
+
 INSERT INTO productos (id, nombre, descripcion, categoria, precio, stock, imagen_url) VALUES
 (1, 'Laptop ASUS VivoBook 15',   'Procesador Intel Core i5, 8GB RAM, 512GB SSD, pantalla FHD 15.6"',  'Laptops',     2499.90, 12, 'https://images.unsplash.com/photo-1603302576837-37561b2e2302?w=400'),
 (2, 'Monitor LG 24" IPS',        'Resolución Full HD 1920x1080, frecuencia 75Hz, panel IPS',           'Monitores',    699.00,  8, 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=400'),
@@ -43,5 +39,4 @@ INSERT INTO productos (id, nombre, descripcion, categoria, precio, stock, imagen
 (8, 'Tablet Samsung Galaxy A8',  'Pantalla 10.5" TFT, 64GB almacenamiento, Android 13',               'Tablets',      899.00,  7, 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=400')
 ON CONFLICT (id) DO NOTHING;
 
--- Ajustar secuencia para que futuros inserts no colisionen
 SELECT setval('productos_id_seq', (SELECT MAX(id) FROM productos));

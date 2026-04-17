@@ -36,8 +36,8 @@ services:
 
 databases:
   - name: techstock-postgres
-    databaseName: inventario_tienda
-    user: techstock_user
     plan: free
     region: oregon
-    postgresMajorVersion: 17
+    databaseName: inventario_tienda
+    user: techstock_user
+    ipAllowList: []
