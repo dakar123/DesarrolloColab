@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>TechStock — Gestión de Inventario</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  /* ─── TOKENS ─────────────────────────────────────────────────── */
+  :root {
+    --bg:        #0a0c10;
+    --bg2:       #10141c;
+    --bg3:       #161b26;
+    --border:    #1e2535;
+    --border2:   #2a3450;
+    --accent:    #00e5c3;
+    --accent2:   #0090ff;
+    --warn:      #ff6b35;
+    --danger:    #ff3b6e;
+    --success:   #00e5a0;
+    --text:      #e8edf5;
+    --text2:     #8492b0;
+    --text3:     #4a567a;
+    --mono:      'JetBrains Mono', monospace;
+    --sans:      'DM Sans', sans-serif;
+    --r:         10px;
+    --r2:        16px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ─── GRID NOISE BACKGROUND ─────────────────────────────────── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background-image:
+      linear-gradient(rgba(0,229,195,.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,195,.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  /* ─── LAYOUT ─────────────────────────────────────────────────── */
+  .app { position: relative; z-index: 1; display: flex; flex-direction: column; min-height: 100vh; }
+
+  /* ─── HEADER ─────────────────────────────────────────────────── */
+  header {
+    background: rgba(10,12,16,.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    height: 64px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo {
+    font-family: var(--mono);
+    font-size: 1.1rem; font-weight: 700;
+    color: var(--accent);
+    letter-spacing: -0.02em;
+    display: flex; align-items: center; gap: .6rem;
+  }
+  .logo-icon {
+    width: 32px; height: 32px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 8px;
+    display: grid; place-items: center;
+    font-size: .9rem;
+  }
+  .logo span { color: var(--text2); font-weight: 400; }
+  .header-right { display: flex; align-items: center; gap: 1rem; }
+  .badge-live {
+    display: flex; align-items: center; gap: .4rem;
+    font-family: var(--mono); font-size: .7rem;
+    color: var(--success); padding: .25rem .7rem;
+    border: 1px solid rgba(0,229,160,.2); border-radius: 20px;
+    background: rgba(0,229,160,.07);
+  }
+  .badge-live::before {
+    content: '';
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--success);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.8)} }
+
+  /* ─── MAIN ───────────────────────────────────────────────────── */
+  main { flex: 1; padding: 2rem; max-width: 1400px; margin: 0 auto; width: 100%; }
+
+  /* ─── STATS CARDS ────────────────────────────────────────────── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem; margin-bottom: 2rem;
+  }
+  .stat-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--r2);
+    padding: 1.25rem 1.5rem;
+    position: relative; overflow: hidden;
+    transition: border-color .2s, transform .2s;
+  }
+  .stat-card:hover { border-color: var(--border2); transform: translateY(-2px); }
+  .stat-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    opacity: 0; transition: opacity .2s;
+  }
+  .stat-card:hover::before { opacity: 1; }
+  .stat-label { font-size: .72rem; color: var(--text3); text-transform: uppercase; letter-spacing: .08em; margin-bottom: .5rem; }
+  .stat-value { font-family: var(--mono); font-size: 2rem; font-weight: 700; color: var(--text); line-height: 1; }
+  .stat-value.accent { color: var(--accent); }
+  .stat-value.warn   { color: var(--warn); }
+  .stat-value.danger { color: var(--danger); }
+  .stat-sub { font-size: .72rem; color: var(--text2); margin-top: .4rem; }
+
+  /* ─── TOOLBAR ────────────────────────────────────────────────── */
+  .toolbar {
+    display: flex; align-items: center; gap: 1rem;
+    margin-bottom: 1.5rem; flex-wrap: wrap;
+  }
+  .search-wrap { position: relative; flex: 1; min-width: 220px; }
+  .search-wrap svg { position: absolute; left: .9rem; top: 50%; transform: translateY(-50%); color: var(--text3); }
+  input[type=text], input[type=number], input[type=url], select, textarea {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    color: var(--text);
+    font-family: var(--sans); font-size: .875rem;
+    padding: .65rem 1rem;
+    width: 100%;
+    outline: none; transition: border-color .2s;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  input::placeholder { color: var(--text3); }
+  .search-wrap input { padding-left: 2.4rem; }
+  select option { background: var(--bg2); }
+
+  /* ─── BUTTONS ────────────────────────────────────────────────── */
+  .btn {
+    display: inline-flex; align-items: center; gap: .5rem;
+    border: none; border-radius: var(--r);
+    padding: .65rem 1.25rem;
+    font-family: var(--sans); font-size: .875rem; font-weight: 500;
+    cursor: pointer; transition: all .15s; white-space: nowrap;
+  }
+  .btn-primary {
+    background: var(--accent); color: #000;
+  }
+  .btn-primary:hover { background: #00ffda; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(0,229,195,.35); }
+  .btn-ghost {
+    background: transparent; color: var(--text2);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { background: var(--bg3); color: var(--text); border-color: var(--border2); }
+  .btn-danger { background: rgba(255,59,110,.12); color: var(--danger); border: 1px solid rgba(255,59,110,.2); }
+  .btn-danger:hover { background: rgba(255,59,110,.25); }
+  .btn-edit  { background: rgba(0,144,255,.12); color: var(--accent2); border: 1px solid rgba(0,144,255,.2); }
+  .btn-edit:hover  { background: rgba(0,144,255,.25); }
+  .btn-sm { padding: .4rem .75rem; font-size: .78rem; }
+
+  /* ─── PRODUCTS GRID ──────────────────────────────────────────── */
+  .products-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+  }
+  .product-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--r2);
+    padding: 1.5rem;
+    display: flex; flex-direction: column; gap: .75rem;
+    transition: all .2s; position: relative; overflow: hidden;
+    animation: fadeIn .3s ease both;
+  }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(10px) } to { opacity:1; transform:none } }
+  .product-card:hover { border-color: var(--border2); transform: translateY(-3px); box-shadow: 0 8px 32px rgba(0,0,0,.4); }
+  .card-img {
+    width: 100%; height: 160px; border-radius: 8px;
+    object-fit: cover; background: var(--bg3);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text3); font-size: 2rem;
+    overflow: hidden;
+  }
+  .card-img img { width:100%; height:100%; object-fit:cover; border-radius:8px; }
+  .card-cat {
+    display: inline-block;
+    font-family: var(--mono); font-size: .65rem;
+    color: var(--accent2);
+    background: rgba(0,144,255,.1); border: 1px solid rgba(0,144,255,.2);
+    padding: .15rem .6rem; border-radius: 20px;
+    text-transform: uppercase; letter-spacing: .06em;
+    width: fit-content;
+  }
+  .card-name {
+    font-size: 1rem; font-weight: 600; color: var(--text);
+    line-height: 1.3;
+  }
+  .card-desc { font-size: .8rem; color: var(--text2); line-height: 1.5; }
+  .card-footer {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: auto; padding-top: .75rem;
+    border-top: 1px solid var(--border);
+  }
+  .card-price {
+    font-family: var(--mono); font-size: 1.1rem; font-weight: 700;
+    color: var(--accent);
+  }
+  .stock-badge {
+    font-family: var(--mono); font-size: .75rem; font-weight: 600;
+    padding: .25rem .7rem; border-radius: 20px;
+  }
+  .stock-ok  { background: rgba(0,229,160,.1); color: var(--success); border: 1px solid rgba(0,229,160,.2); }
+  .stock-low { background: rgba(255,107,53,.1); color: var(--warn);   border: 1px solid rgba(255,107,53,.2); }
+  .stock-out { background: rgba(255,59,110,.1); color: var(--danger); border: 1px solid rgba(255,59,110,.2); }
+  .card-actions { display: flex; gap: .5rem; margin-top: .5rem; }
+
+  /* ─── EMPTY STATE ────────────────────────────────────────────── */
+  .empty {
+    grid-column: 1/-1; text-align: center; padding: 5rem 2rem;
+    color: var(--text3); font-family: var(--mono);
+  }
+  .empty .empty-icon { font-size: 3rem; margin-bottom: 1rem; }
+  .empty p { font-size: .875rem; }
+
+  /* ─── MODAL ──────────────────────────────────────────────────── */
+  .overlay {
+    display: none; position: fixed; inset: 0; z-index: 200;
+    background: rgba(0,0,0,.7); backdrop-filter: blur(4px);
+    align-items: center; justify-content: center; padding: 1rem;
+  }
+  .overlay.open { display: flex; animation: fadeIn .15s ease; }
+  .modal {
+    background: var(--bg2); border: 1px solid var(--border2);
+    border-radius: var(--r2); width: 100%; max-width: 520px;
+    max-height: 90vh; overflow-y: auto;
+    padding: 2rem; display: flex; flex-direction: column; gap: 1.5rem;
+  }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; }
+  .modal-title { font-family: var(--mono); font-size: 1rem; font-weight: 700; color: var(--accent); }
+  .modal-close { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 1.2rem; transition: color .15s; }
+  .modal-close:hover { color: var(--text); }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .form-grid .full { grid-column: 1/-1; }
+  .form-group { display: flex; flex-direction: column; gap: .4rem; }
+  .form-label { font-size: .75rem; color: var(--text2); font-weight: 500; letter-spacing: .04em; }
+  .modal-footer { display: flex; gap: .75rem; justify-content: flex-end; }
+
+  /* ─── CONFIRM DIALOG ─────────────────────────────────────────── */
+  .confirm-modal {
+    background: var(--bg2); border: 1px solid rgba(255,59,110,.3);
+    border-radius: var(--r2); width: 100%; max-width: 380px;
+    padding: 1.75rem; text-align: center;
+    display: flex; flex-direction: column; gap: 1.25rem;
+  }
+  .confirm-icon { font-size: 2.5rem; }
+  .confirm-title { font-family: var(--mono); font-size: 1rem; color: var(--text); }
+  .confirm-desc { font-size: .875rem; color: var(--text2); }
+  .confirm-actions { display: flex; gap: .75rem; justify-content: center; }
+
+  /* ─── TOAST ──────────────────────────────────────────────────── */
+  #toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 999; display: flex; flex-direction: column; gap: .5rem; }
+  .toast {
+    background: var(--bg3); border: 1px solid var(--border2);
+    border-radius: var(--r); padding: .875rem 1.25rem;
+    font-size: .875rem; color: var(--text);
+    display: flex; align-items: center; gap: .6rem;
+    box-shadow: 0 8px 32px rgba(0,0,0,.5);
+    animation: slideIn .25s ease;
+    min-width: 260px;
+  }
+  .toast.success { border-left: 3px solid var(--success); }
+  .toast.error   { border-left: 3px solid var(--danger); }
+  @keyframes slideIn { from { transform:translateX(100%); opacity:0 } to { transform:none; opacity:1 } }
+
+  /* ─── LOADING ────────────────────────────────────────────────── */
+  .spinner {
+    width: 20px; height: 20px; border-radius: 50%;
+    border: 2px solid var(--border2); border-top-color: var(--accent);
+    animation: spin .6s linear infinite; margin: 0 auto;
+  }
+  @keyframes spin { to { transform: rotate(360deg) } }
+
+  /* ─── SECTION HEADER ─────────────────────────────────────────── */
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;
+  }
+  .section-title {
+    font-family: var(--mono); font-size: 1.1rem; font-weight: 700;
+    display: flex; align-items: center; gap: .5rem;
+  }
+  .section-title .count {
+    font-size: .7rem; background: rgba(0,229,195,.1);
+    color: var(--accent); border: 1px solid rgba(0,229,195,.2);
+    padding: .2rem .6rem; border-radius: 20px;
+  }
+  .divider { height: 1px; background: var(--border); margin: 2rem 0; }
+  footer { text-align: center; padding: 1.5rem; color: var(--text3); font-family: var(--mono); font-size: .7rem; border-top: 1px solid var(--border); }
+
+  @media (max-width: 640px) {
+    main { padding: 1rem; }
+    .form-grid { grid-template-columns: 1fr; }
+    .toolbar { flex-direction: column; align-items: stretch; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ─── HEADER ─── -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">⚡</div>
+      TechStock<span>/inventario</span>
+    </div>
+    <div class="header-right">
+      <div class="badge-live">SISTEMA ACTIVO</div>
+      <button class="btn btn-primary" onclick="abrirModalCrear()">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        Nuevo Producto
+      </button>
+    </div>
+  </header>
+
+  <!-- ─── MAIN ─── -->
+  <main>
+
+    <!-- Stats -->
+    <div class="stats-grid" id="stats-grid">
+      <div class="stat-card"><div class="stat-label">Total Productos</div><div class="stat-value accent" id="stat-total">—</div><div class="stat-sub">artículos registrados</div></div>
+      <div class="stat-card"><div class="stat-label">Unidades en Stock</div><div class="stat-value" id="stat-stock">—</div><div class="stat-sub">unidades disponibles</div></div>
+      <div class="stat-card"><div class="stat-label">Valor Inventario</div><div class="stat-value accent" id="stat-valor">—</div><div class="stat-sub">valor total estimado</div></div>
+      <div class="stat-card"><div class="stat-label">Sin Stock</div><div class="stat-value danger" id="stat-sinstock">—</div><div class="stat-sub">requieren reposición</div></div>
+      <div class="stat-card"><div class="stat-label">Stock Bajo</div><div class="stat-value warn" id="stat-bajo">—</div><div class="stat-sub">≤ 5 unidades</div></div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="search-wrap" style="flex:1; min-width:200px">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" id="search-input" placeholder="Buscar productos..." oninput="debounceSearch()"/>
+      </div>
+      <select id="cat-filter" onchange="cargarProductos()" style="width:auto;min-width:160px">
+        <option value="">Todas las categorías</option>
+      </select>
+      <button class="btn btn-ghost" onclick="cargarProductos()">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        Actualizar
+      </button>
+    </div>
+
+    <!-- Section header -->
+    <div class="section-header">
+      <div class="section-title">
+        🗃️ Inventario
+        <span class="count" id="product-count">0</span>
+      </div>
+    </div>
+
+    <!-- Products grid -->
+    <div class="products-grid" id="products-grid">
+      <div class="empty"><div class="spinner"></div></div>
+    </div>
+
+  </main>
+
+  <footer>TechStock v1.0 — Gestión de Inventario · Node.js + MySQL · Desplegado en Render</footer>
+</div>
+
+<!-- ─── MODAL CREAR/EDITAR ─── -->
+<div class="overlay" id="modal-overlay">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">NUEVO PRODUCTO</div>
+      <button class="modal-close" onclick="cerrarModal()">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group full">
+        <label class="form-label">Nombre del producto *</label>
+        <input type="text" id="f-nombre" placeholder="Ej: Laptop ASUS VivoBook 15"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Categoría</label>
+        <input type="text" id="f-categoria" placeholder="Ej: Laptops" list="cat-list"/>
+        <datalist id="cat-list"></datalist>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Precio (S/) *</label>
+        <input type="number" id="f-precio" placeholder="0.00" step="0.01" min="0"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Stock</label>
+        <input type="number" id="f-stock" placeholder="0" min="0"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">URL de Imagen</label>
+        <input type="url" id="f-imagen" placeholder="https://..."/>
+      </div>
+      <div class="form-group full">
+        <label class="form-label">Descripción</label>
+        <textarea id="f-descripcion" placeholder="Descripción del producto..." rows="3" style="resize:vertical"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn btn-primary" id="modal-btn-save" onclick="guardarProducto()">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Guardar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── MODAL CONFIRMAR ELIMINAR ─── -->
+<div class="overlay" id="confirm-overlay">
+  <div class="confirm-modal">
+    <div class="confirm-icon">⚠️</div>
+    <div class="confirm-title">¿Eliminar producto?</div>
+    <div class="confirm-desc">Esta acción no se puede deshacer. El producto será eliminado permanentemente del inventario.</div>
+    <div class="confirm-actions">
+      <button class="btn btn-ghost" onclick="cerrarConfirm()">Cancelar</button>
+      <button class="btn btn-danger" id="confirm-btn">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── TOAST ─── -->
+<div id="toast-container"></div>
+
+<script>
+  // ─── STATE ────────────────────────────────────────────
+  let editId = null;
+  let searchTimer = null;
+
+  // ─── API BASE ─────────────────────────────────────────
+  const API = '/api';
+
+  // ─── INIT ─────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', () => {
+    cargarStats();
+    cargarCategorias();
+    cargarProductos();
+  });
+
+  // ─── STATS ───────────────────────────────────────────
+  async function cargarStats() {
+    try {
+      const r = await fetch(`${API}/stats`);
+      const { data } = await r.json();
+      document.getElementById('stat-total').textContent    = data.total_productos;
+      document.getElementById('stat-stock').textContent    = data.stock_total;
+      document.getElementById('stat-valor').textContent    = `S/ ${Number(data.valor_inventario).toLocaleString('es-PE',{minimumFractionDigits:2})}`;
+      document.getElementById('stat-sinstock').textContent = data.sin_stock;
+      document.getElementById('stat-bajo').textContent     = data.bajo_stock;
+    } catch(e) { console.error(e); }
+  }
+
+  // ─── CATEGORÍAS ──────────────────────────────────────
+  async function cargarCategorias() {
+    try {
+      const r = await fetch(`${API}/categorias`);
+      const { data } = await r.json();
+      const sel  = document.getElementById('cat-filter');
+      const dl   = document.getElementById('cat-list');
+      // Mantener primera opción
+      while (sel.options.length > 1) sel.remove(1);
+      dl.innerHTML = '';
+      data.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = opt.textContent = c;
+        sel.appendChild(opt.cloneNode(true));
+        dl.appendChild(opt);
+      });
+    } catch(e) {}
+  }
+
+  // ─── PRODUCTOS ───────────────────────────────────────
+  async function cargarProductos() {
+    const grid   = document.getElementById('products-grid');
+    const search = document.getElementById('search-input').value.trim();
+    const cat    = document.getElementById('cat-filter').value;
+    grid.innerHTML = '<div class="empty"><div class="spinner"></div></div>';
+
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (cat)    params.set('categoria', cat);
+
+    try {
+      const r = await fetch(`${API}/productos?${params}`);
+      const { data, total } = await r.json();
+      document.getElementById('product-count').textContent = total;
+      renderProducts(data);
+      cargarStats();
+    } catch(e) {
+      grid.innerHTML = `<div class="empty"><div class="empty-icon">⚡</div><p>Error al cargar los productos</p></div>`;
+    }
+  }
+
+  function renderProducts(productos) {
+    const grid = document.getElementById('products-grid');
+    if (!productos.length) {
+      grid.innerHTML = `<div class="empty"><div class="empty-icon">📦</div><p>No se encontraron productos</p></div>`;
+      return;
+    }
+    grid.innerHTML = productos.map((p, i) => `
+      <div class="product-card" style="animation-delay:${i * 0.04}s">
+        <div class="card-img">
+          ${p.imagen_url
+            ? `<img src="${escHtml(p.imagen_url)}" alt="${escHtml(p.nombre)}" onerror="this.parentElement.innerHTML='📷'">`
+            : '📷'}
+        </div>
+        ${p.categoria ? `<span class="card-cat">${escHtml(p.categoria)}</span>` : ''}
+        <div class="card-name">${escHtml(p.nombre)}</div>
+        ${p.descripcion ? `<div class="card-desc">${escHtml(p.descripcion.substring(0,100))}${p.descripcion.length>100?'…':''}</div>` : ''}
+        <div class="card-footer">
+          <span class="card-price">S/ ${Number(p.precio).toLocaleString('es-PE',{minimumFractionDigits:2})}</span>
+          ${stockBadge(p.stock)}
+        </div>
+        <div class="card-actions">
+          <button class="btn btn-edit btn-sm" style="flex:1" onclick="abrirModalEditar(${p.id})">
+            ✏️ Editar
+          </button>
+          <button class="btn btn-danger btn-sm" onclick="confirmarEliminar(${p.id}, '${escHtml(p.nombre)}')">
+            🗑️
+          </button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function stockBadge(stock) {
+    if (stock === 0)  return `<span class="stock-badge stock-out">Sin stock</span>`;
+    if (stock <= 5)   return `<span class="stock-badge stock-low">${stock} uds.</span>`;
+    return `<span class="stock-badge stock-ok">${stock} uds.</span>`;
+  }
+
+  // ─── MODAL CREAR / EDITAR ────────────────────────────
+  function abrirModalCrear() {
+    editId = null;
+    limpiarForm();
+    document.getElementById('modal-title').textContent = 'NUEVO PRODUCTO';
+    document.getElementById('modal-btn-save').textContent = 'Guardar';
+    document.getElementById('modal-overlay').classList.add('open');
+  }
+
+  async function abrirModalEditar(id) {
+    try {
+      const r = await fetch(`${API}/productos/${id}`);
+      const { data } = await r.json();
+      editId = id;
+      document.getElementById('f-nombre').value      = data.nombre       || '';
+      document.getElementById('f-descripcion').value = data.descripcion  || '';
+      document.getElementById('f-categoria').value   = data.categoria    || '';
+      document.getElementById('f-precio').value      = data.precio       || '';
+      document.getElementById('f-stock').value       = data.stock        || 0;
+      document.getElementById('f-imagen').value      = data.imagen_url   || '';
+      document.getElementById('modal-title').textContent = 'EDITAR PRODUCTO';
+      document.getElementById('modal-btn-save').textContent = 'Actualizar';
+      document.getElementById('modal-overlay').classList.add('open');
+    } catch(e) { toast('Error al cargar el producto', 'error'); }
+  }
+
+  function cerrarModal() {
+    document.getElementById('modal-overlay').classList.remove('open');
+    editId = null;
+  }
+
+  async function guardarProducto() {
+    const nombre = document.getElementById('f-nombre').value.trim();
+    const precio = document.getElementById('f-precio').value;
+    if (!nombre)  { toast('El nombre es obligatorio', 'error'); return; }
+    if (!precio)  { toast('El precio es obligatorio', 'error'); return; }
+
+    const body = {
+      nombre,
+      descripcion: document.getElementById('f-descripcion').value.trim() || null,
+      categoria:   document.getElementById('f-categoria').value.trim()   || null,
+      precio:      parseFloat(precio),
+      stock:       parseInt(document.getElementById('f-stock').value)    || 0,
+      imagen_url:  document.getElementById('f-imagen').value.trim()      || null,
+    };
+
+    const url    = editId ? `${API}/productos/${editId}` : `${API}/productos`;
+    const method = editId ? 'PUT' : 'POST';
+
+    try {
+      const r   = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      const res = await r.json();
+      if (!res.ok) throw new Error(res.error);
+      toast(res.message, 'success');
+      cerrarModal();
+      cargarProductos();
+      cargarCategorias();
+    } catch(e) { toast(e.message || 'Error al guardar', 'error'); }
+  }
+
+  // ─── ELIMINAR ────────────────────────────────────────
+  function confirmarEliminar(id, nombre) {
+    document.querySelector('.confirm-desc').textContent = `¿Seguro que deseas eliminar "${nombre}"? Esta acción no se puede deshacer.`;
+    document.getElementById('confirm-btn').onclick = () => eliminarProducto(id);
+    document.getElementById('confirm-overlay').classList.add('open');
+  }
+  function cerrarConfirm() {
+    document.getElementById('confirm-overlay').classList.remove('open');
+  }
+  async function eliminarProducto(id) {
+    try {
+      const r   = await fetch(`${API}/productos/${id}`, { method: 'DELETE' });
+      const res = await r.json();
+      if (!res.ok) throw new Error(res.error);
+      toast(res.message, 'success');
+      cerrarConfirm();
+      cargarProductos();
+      cargarCategorias();
+    } catch(e) { toast(e.message || 'Error al eliminar', 'error'); }
+  }
+
+  // ─── SEARCH DEBOUNCE ─────────────────────────────────
+  function debounceSearch() {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(cargarProductos, 400);
+  }
+
+  // ─── TOAST ───────────────────────────────────────────
+  function toast(msg, type = 'success') {
+    const c = document.getElementById('toast-container');
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.innerHTML = `${type==='success'?'✅':'❌'} ${escHtml(msg)}`;
+    c.appendChild(el);
+    setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateX(100%)'; el.style.transition = '.3s'; setTimeout(() => el.remove(), 300); }, 3500);
+  }
+
+  // ─── UTILS ───────────────────────────────────────────
+  function limpiarForm() {
+    ['f-nombre','f-descripcion','f-categoria','f-precio','f-imagen'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('f-stock').value = 0;
+  }
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // Cerrar con Escape
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { cerrarModal(); cerrarConfirm(); }
+  });
+</script>
+</body>
+</html>

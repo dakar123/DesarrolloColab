@@ -1,0 +1,43 @@
+services:
+  - type: web
+    name: techstock-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: oregon
+    plan: free
+    healthCheckPath: /health
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: DB_HOST
+        fromDatabase:
+          name: techstock-postgres
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: techstock-postgres
+          property: port
+      - key: DB_USER
+        fromDatabase:
+          name: techstock-postgres
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: techstock-postgres
+          property: password
+      - key: DB_NAME
+        fromDatabase:
+          name: techstock-postgres
+          property: database
+
+databases:
+  - name: techstock-postgres
+    databaseName: inventario_tienda
+    user: techstock_user
+    plan: free
+    region: oregon
+    postgresMajorVersion: 17
